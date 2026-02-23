@@ -1,5 +1,8 @@
+import time
 import subprocess
+import os
 from ansys_api.models import UserTask, CalculationResult
+from django.core.files import File
 
 
 class UserTaskExcutor:
@@ -12,7 +15,6 @@ class UserTaskExcutor:
             self.user_task.executor.pure_path,
             "-B",
             "-F", user_task.project_path, 
-            # "-F", 'C:/Users/Lenar/AnsysProjects/pipe_3.wbpj',
             "-R", user_task.config.path,
         ]
 
@@ -40,10 +42,16 @@ def execute_user_task(user_task: UserTask):
         executor()
         print("Calculation completed.")
         print("Saving result...")
-        CalculationResult.objects.create(
-            result=user_task.result_path,
-            user_task=user_task
-        )
+
+        for _ in range(10):
+            time.sleep(1)
+
+        result_path = user_task.result_path
+        with open(result_path, 'rb') as csv_file:
+            django_file = File(csv_file)
+            result = CalculationResult(user_task=user_task)
+            result.result.save(os.path.basename(result_path), django_file, save=True)
+
         print("Result saved.")
     except Exception as e:
         print(f"Exception occurred while executing user task: {e}")

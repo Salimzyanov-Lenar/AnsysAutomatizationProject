@@ -88,3 +88,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 
 STATIC_URL = 'static/'
+
+# Media files (Uploaded files)
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
