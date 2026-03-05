@@ -8,6 +8,8 @@ from django.core.files.base import ContentFile
 from typing import Any
 from ansys_api.models import Experiment, UserTask, CalculationResult, Graph
 
+import matplotlib
+matplotlib.use('Agg')
 
 def _replace_parameters(match, new_params):
     param_name = match.group(1)
@@ -80,7 +82,8 @@ def parse_result_from_calculation_result(calculation_result: CalculationResult) 
     return result
 
 
-def _build_graph_for_experiment(experiment: Experiment) -> Graph:
+def _build_graph_for_experiment(experiment: Experiment):
+
     calculation_results = experiment.calculation_results.order_by("-created_at")
 
     graph_values = [
@@ -90,33 +93,83 @@ def _build_graph_for_experiment(experiment: Experiment) -> Graph:
 
     if not graph_values:
         return
+
+    keys = list(graph_values[0].keys())
+
+    input_keys = [k for k in keys if k.startswith("P") and int(k.split()[0][1:]) < 7]
+    output_keys = [k for k in keys if k.startswith("P") and int(k.split()[0][1:]) >= 7]
+
+    graphs = []
+
+    for x_key in input_keys:
+        for y_key in output_keys:
+
+            sorted_values = sorted(graph_values, key=lambda d: d[x_key])
+
+            x = [d[x_key] for d in sorted_values]
+            y = [d[y_key] for d in sorted_values]
+
+            plt.figure()
+            plt.plot(x, y, marker="o")
+            plt.xlabel(x_key)
+            plt.ylabel(y_key)
+            plt.grid(True)
+
+            buffer = BytesIO()
+            plt.savefig(buffer, format="png", dpi=300)
+            plt.close()
+
+            buffer.seek(0)
+
+            graph = Graph(user_task=experiment.user_task, experiment=experiment)
+            graph.graph.save(
+                f'graph_{uuid.uuid4().hex}.png',
+                ContentFile(buffer.read()),
+                save=True
+            )
+
+            graphs.append(graph)
+
+    return graphs
+
+# def _build_graph_for_experiment(experiment: Experiment) -> Graph:
+#     calculation_results = experiment.calculation_results.order_by("-created_at")
+
+#     graph_values = [
+#         parse_result_from_calculation_result(r)
+#         for r in calculation_results
+#     ]
+
+#     breakpoint()
+#     if not graph_values:
+#         return
     
-    # ключи
-    x_key = list(graph_values[0].keys())[0]
-    y_key = list(graph_values[0].keys())[1]
+#     # ключи
+#     x_key = list(graph_values[0].keys())[0]
+#     y_key = list(graph_values[0].keys())[1]
 
-    # сортировка (важно)
-    graph_values.sort(key=lambda d: d[x_key])
+#     # сортировка (важно)
+#     graph_values.sort(key=lambda d: d[x_key])
 
-    x = [d[x_key] for d in graph_values]
-    y = [d[y_key] for d in graph_values]
+#     x = [d[x_key] for d in graph_values]
+#     y = [d[y_key] for d in graph_values]
 
-    # строим график
-    plt.figure()
-    plt.plot(x, y)
-    plt.xlabel(x_key)
-    plt.ylabel(y_key)
-    plt.grid(True)
+#     # строим график
+#     plt.figure()
+#     plt.plot(x, y)
+#     plt.xlabel(x_key)
+#     plt.ylabel(y_key)
+#     plt.grid(True)
 
-    # сохраняем в память
-    buffer = BytesIO()
-    plt.savefig(buffer, format='png', dpi=300)
-    plt.close()
-    buffer.seek(0)
+#     # сохраняем в память
+#     buffer = BytesIO()
+#     plt.savefig(buffer, format='png', dpi=300)
+#     plt.close()
+#     buffer.seek(0)
 
-    graph = Graph(user_task=experiment.user_task, experiment=experiment)
-    graph.graph.save(f'graph_{uuid.uuid4().hex}.png', ContentFile(buffer.read()), save=True)
-    return graph
+#     graph = Graph(user_task=experiment.user_task, experiment=experiment)
+#     graph.graph.save(f'graph_{uuid.uuid4().hex}.png', ContentFile(buffer.read()), save=True)
+#     return graph
 
 
 def _build_graph_with_experiement_result(graph: Graph) -> None:
